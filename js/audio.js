@@ -19,7 +19,7 @@ class RadioPlayer {
         this.audio.addEventListener('pause', this.handlePause);
     }
 
-    loadStation(station) {
+    async loadStation(station) {
         if (!station || !station.url) return;
 
         // Stop current if playing
@@ -28,10 +28,21 @@ class RadioPlayer {
         this.isLoading = true;
 
         this.currentStation = station;
-        this.audio.src = station.url;
-        this.audio.volume = this.volume;
-
         this.dispatchEvent('stationChanged', station);
+
+        // Resolve URL if it's a podcast/blog page
+        let finalUrl = station.url;
+        if (station.genre === 'Podcast' || !station.url.includes('stream')) {
+            try {
+                this.dispatchEvent('buffering', "Resolving...");
+                finalUrl = await PodcastService.resolveUrl(station.url);
+            } catch (e) {
+                console.warn("Podcast resolution failed, trying original URL");
+            }
+        }
+
+        this.audio.src = finalUrl;
+        this.audio.volume = this.volume;
 
         // Attempt to play immediately
         this.play();

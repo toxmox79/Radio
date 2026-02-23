@@ -6,6 +6,7 @@ const ASSETS_TO_CACHE = [
   './js/app.js',
   './js/audio.js',
   './js/db.js',
+  './js/podcast-service.js',
   './js/frequencies.js',
   './js/metadata.js',
   './js/podcasts.js',

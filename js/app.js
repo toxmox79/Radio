@@ -94,7 +94,8 @@ function loadStation(index, autoPlay = true) {
         radioPlayer.loadStation(station);
     } else {
         radioPlayer.currentStation = station;
-        radioPlayer.audio.src = station.url;
+        // Don't set src directly, let loadStation handle it when play is clicked
+        radioPlayer.dispatchEvent('buffering', "Bereit");
     }
 
     updateActiveStationInLists(station.url);
