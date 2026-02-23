@@ -1,51 +1,51 @@
 // Default podcasts list - Using direct audio streams where available
 const defaultPodcasts = [
     {
-        "name": "WDR 5 - Politiquement incorrect",
-        "url": "https://podcast.wdr5.de/politiquementincorrect.mp3",
-        "genre": "Satire, Comedy",
+        "name": "Meditation für jeden Tag",
+        "url": "https://paulinathurm.libsyn.com/rss",
+        "genre": "Meditation",
         "image": ""
     },
     {
-        "name": "WDR 5 - Das philosophische Radio",
-        "url": "https://podcast.wdr5.de/philosophisch.mp3",
-        "genre": "Philosophie",
+        "name": "Koala Mind - Meditation",
+        "url": "https://feeds.acast.com/public/shows/koala-mind-meditation-achtsamkeit",
+        "genre": "Achtsamkeit",
         "image": ""
     },
     {
-        "name": "NDR Info - Nachrichten",
-        "url": "https://podcast.ndr.de/ndrinfo.mp3",
-        "genre": "Nachrichten",
+        "name": "Bleib entspannt! Meditation",
+        "url": "https://bleib-entspannt.podigee.io/feed/mp3",
+        "genre": "Entspannung",
         "image": ""
     },
     {
-        "name": "Bayern 2 - radioWelt",
-        "url": "https://podcast.br.de/radiowelt.mp3",
-        "genre": "Gesellschaft",
+        "name": "Hypnose & Entspannung",
+        "url": "https://hypnose-entspannung.podigee.io/feed/mp3",
+        "genre": "Hypnose",
         "image": ""
     },
     {
-        "name": "SWR2 - Radiofeuilleton",
-        "url": "https://podcast.swr.de/swr2_radiofeuilleton.mp3",
-        "genre": "Kultur",
+        "name": "LOSLEBEN - Hypnose",
+        "url": "https://me-time.podigee.io/feed/mp3",
+        "genre": "Hypnose",
         "image": ""
     },
     {
-        "name": "Deutschlandfunk - Informationen",
-        "url": "https://podcast.dlf.de/iafm.mp3",
-        "genre": "Nachrichten",
+        "name": "Einschlafen mit Meditation",
+        "url": "https://einschlafen-mit-meditation.podigee.io/feed/mp3",
+        "genre": "Schlaf",
         "image": ""
     },
     {
-        "name": "Tagesschau Podcast",
-        "url": "https://podcast.tagesschau.de/tagesschau.mp3",
-        "genre": "Nachrichten",
+        "name": "Mindful Minutes",
+        "url": "https://7v9p9z.podcaster.de/mindfulminutes.rss",
+        "genre": "Achtsamkeit",
         "image": ""
     },
     {
-        "name": "ZDF - Fokus",
-        "url": "https://podcast.zdf.de/fokus.mp3",
-        "genre": "Nachrichten",
+        "name": "7Mind Podcast",
+        "url": "https://7mind.podigee.io/feed/mp3",
+        "genre": "Meditation",
         "image": ""
     }
 ];

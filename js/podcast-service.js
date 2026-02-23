@@ -13,74 +13,88 @@ const PodcastService = {
 
         console.log("PodcastService: Resolving URL:", url);
 
-        try {
-            // Use AllOrigins proxy to bypass CORS
-            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-            const response = await fetch(proxyUrl);
-            const data = await response.json();
+        const proxies = [
+            (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+            (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+            (u) => `https://api.codetabs.com/v1/proxy?url=${encodeURIComponent(u)}`,
+            (u) => `https://thingproxy.freeboard.io/fetch/${u}`
+        ];
 
-            if (!data || !data.contents) {
-                throw new Error("Could not fetch content via proxy");
-            }
+        for (let i = 0; i < proxies.length; i++) {
+            try {
+                const proxyUrl = proxies[i](url);
+                console.log(`PodcastService: Trying proxy ${i + 1}:`, proxyUrl);
 
-            const content = data.contents;
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error(`Proxy returned status ${response.status}`);
 
-            // 1. Try RSS/XML parsing (standard enclosures)
-            if (content.trim().startsWith('<')) {
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(content, "text/xml");
-
-                // Check for RSS enclosure
-                const enclosure = xmlDoc.querySelector('enclosure[type^="audio"]');
-                if (enclosure && enclosure.getAttribute('url')) {
-                    console.log("PodcastService: Found RSS enclosure:", enclosure.getAttribute('url'));
-                    return enclosure.getAttribute('url');
+                let content;
+                if (proxyUrl.includes('allorigins')) {
+                    const data = await response.json();
+                    content = data.contents;
+                } else {
+                    content = await response.text();
                 }
 
-                // Try looking for mp3 in XML text (last resort for malformed feeds)
-                const mp3Match = content.match(/https?:\/\/[^"'>\s]+\.(mp3|aac|m4a)/i);
-                if (mp3Match) {
-                    console.log("PodcastService: Found MP3 link in XML text:", mp3Match[0]);
-                    return mp3Match[0];
-                }
-            }
+                if (!content) throw new Error("Empty content from proxy");
 
-            // 2. Try HTML parsing
-            if (content.toLowerCase().includes('<html') || content.toLowerCase().includes('<!doctype')) {
-                const parser = new DOMParser();
-                const htmlDoc = parser.parseFromString(content, "text/html");
+                // 1. Try RSS/XML parsing (standard enclosures)
+                if (content.trim().startsWith('<')) {
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(content, "text/xml");
+                    const parseError = xmlDoc.getElementsByTagName("parsererror");
 
-                // Look for <audio> tags
-                const audioTag = htmlDoc.querySelector('audio source') || htmlDoc.querySelector('audio');
-                if (audioTag) {
-                    const src = audioTag.getAttribute('src');
-                    if (src) return this.absoluteUrl(url, src);
-                }
+                    if (parseError.length === 0) {
+                        // Check for RSS enclosure
+                        const enclosure = xmlDoc.querySelector('enclosure[type^="audio"]');
+                        if (enclosure && enclosure.getAttribute('url')) {
+                            console.log("PodcastService: Found RSS enclosure:", enclosure.getAttribute('url'));
+                            return enclosure.getAttribute('url');
+                        }
+                    }
 
-                // Look for common patterns (Apple Podcasts, Spotify, etc. meta tags)
-                const twitterPlayer = htmlDoc.querySelector('meta[name="twitter:player:stream"]');
-                if (twitterPlayer && twitterPlayer.getAttribute('content')) {
-                    return twitterPlayer.getAttribute('content');
-                }
-
-                // Hard search for any direct audio link in the page
-                const matches = content.match(/https?:\/\/[^"'>\s]+\.(mp3|aac|m4a|ogg)(\?[^"'>\s]*)?/gi);
-                if (matches && matches.length > 0) {
-                    // Filter out common ads/tracking if multiple found
-                    const direct = matches.find(m => !m.includes('adswizz') && !m.includes('doubleclick'));
-                    if (direct) {
-                        console.log("PodcastService: Found direct audio link in HTML:", direct);
-                        return direct;
+                    // Try looking for mp3/m4a in XML text (regex fallback)
+                    const mp3Match = content.match(/https?:\/\/[^"'>\s]+\.(mp3|aac|m4a|ogg)/i);
+                    if (mp3Match) {
+                        console.log("PodcastService: Found audio link in XML text:", mp3Match[0]);
+                        return mp3Match[0];
                     }
                 }
-            }
 
-            // Fallback: Just return original and hope browser handles it
-            return url;
-        } catch (error) {
-            console.error("PodcastService Error:", error);
-            return url;
+                // 2. Try HTML parsing (if it's a landing page)
+                if (content.toLowerCase().includes('<html')) {
+                    const parser = new DOMParser();
+                    const htmlDoc = parser.parseFromString(content, "text/html");
+
+                    // Look for <audio> tags
+                    const audioTag = htmlDoc.querySelector('audio source') || htmlDoc.querySelector('audio');
+                    if (audioTag) {
+                        const src = audioTag.getAttribute('src');
+                        if (src) return this.absoluteUrl(url, src);
+                    }
+
+                    // Look for direct audio link in the page
+                    const matches = content.match(/https?:\/\/[^"'>\s]+\.(mp3|aac|m4a|ogg)(\?[^"'>\s]*)?/gi);
+                    if (matches && matches.length > 0) {
+                        const direct = matches.find(m => !m.includes('adswizz') && !m.includes('doubleclick'));
+                        if (direct) {
+                            console.log("PodcastService: Found direct audio link in HTML:", direct);
+                            return direct;
+                        }
+                    }
+                }
+
+                // If content was fetched but nothing found, break and return original next
+                console.warn(`PodcastService: Content fetched via proxy ${i + 1} but no audio URL found.`);
+            } catch (error) {
+                console.warn(`PodcastService: Proxy ${i + 1} failed:`, error.message);
+                // Continue to next proxy
+            }
         }
+
+        // Fallback: Just return original and hope browser handles it
+        console.warn("PodcastService: All proxies failed or no audio found, returning original URL.");
+        return url;
     },
 
     absoluteUrl(base, relative) {

@@ -3,7 +3,8 @@ const state = {
     currentPage: 'player', // player, stations, frequencies, favorites, settings
     currentStationIndex: 0,
     currentGenre: 'Alle',
-    favorites: []
+    favorites: [],
+    topGenres: []
 };
 
 // --- DOM Elements ---
@@ -51,6 +52,20 @@ function init() {
     };
     document.body.addEventListener('click', resumeAudio, { once: true });
     document.body.addEventListener('touchstart', resumeAudio, { once: true });
+
+    // Check for file:// protocol
+    if (window.location.protocol === 'file:') {
+        console.warn("APP-HINWEIS: Du startest die App über das Dateisystem (file://).");
+        console.warn("Einige Funktionen (wie Service Worker und PWA-Offline-Modus) funktionieren nur über einen Webserver (http:// oder https://).");
+        showProtocolWarning();
+    }
+}
+
+function showProtocolWarning() {
+    const warning = document.createElement('div');
+    warning.style.cssText = 'position:fixed; bottom:70px; left:10px; right:10px; background:#ff9800; color:white; padding:10px; border-radius:8px; font-size:0.8rem; z-index:10000; text-align:center; box-shadow:0 4px 10px rgba(0,0,0,0.2);';
+    warning.innerHTML = '<strong>Hinweis:</strong> Start über Dateisystem erkannt. Für volle PWA-Funktion (Offline-Modus) wird ein lokaler Server empfohlen. <button onclick="this.parentElement.remove()" style="margin-left:10px; border:none; background:rgba(0,0,0,0.2); color:white; border-radius:4px; padding:2px 8px; cursor:pointer;">OK</button>';
+    document.body.appendChild(warning);
 }
 
 // --- Navigation Logic ---
@@ -82,7 +97,11 @@ function loadStation(index, autoPlay = true) {
     console.log("Loading Station:", station.name, "AutoPlay:", autoPlay);
 
     stationNameEl.textContent = station.name;
-    stationGenreEl.textContent = station.genre || "...";
+
+    // Filter genres to only show those in topGenres for the player header too
+    const stationGenres = station.genre ? station.genre.split(',').map(g => g.trim()) : [];
+    const filteredGenres = stationGenres.filter(g => state.topGenres.includes(g)).join(', ');
+    stationGenreEl.textContent = filteredGenres || "...";
 
     if (station.image) {
         coverArtEl.style.backgroundImage = `url(${station.image})`;
@@ -206,12 +225,21 @@ function renderStationList() {
         const stationImage = station.image || 'icon-192.png';
         // The true index is needed for loadStation
         const trueIndex = stations.findIndex(s => s.url === station.url);
+
+        // Shorten name if more than 5 words
+        const words = station.name.trim().split(/\s+/);
+        const displayName = words.length > 5 ? words.slice(0, 5).join(' ') + '...' : station.name;
+
+        // Filter genres to only show those in topGenres
+        const stationGenres = station.genre ? station.genre.split(',').map(g => g.trim()) : [];
+        const filteredGenres = stationGenres.filter(g => state.topGenres.includes(g)).join(', ');
+
         return `
-            <div class="list-item station-item" data-index="${trueIndex}" data-url="${station.url}">
+            <div class="list-item station-item" data-index="${trueIndex}" data-url="${station.url}" title="${station.name}">
                 <div class="station-icon" style="background-image: url('${stationImage}')"></div>
                 <div class="station-info">
-                    <div>${station.name}</div>
-                    <small>${station.genre || ''}</small>
+                    <div>${displayName}</div>
+                    <small>${filteredGenres}</small>
                 </div>
             </div>
         `;
@@ -243,22 +271,64 @@ function renderPodcastList() {
         const isCustom = isCustomPodcast(podcast.url);
         return `
             <div class="list-item podcast-item" data-index="${index}" data-url="${podcast.url}" data-name="${podcast.name}">
-                <div class="podcast-icon" style="background-image: url('${podcastImage}')"></div>
-                <div class="podcast-info">
-                    <div>${podcast.name}</div>
-                    <small>${podcast.genre || 'Podcast'}</small>
+                <div class="podcast-header">
+                    <div class="podcast-icon" style="background-image: url('${podcastImage}')"></div>
+                    <div class="podcast-info">
+                        <div>${podcast.name}</div>
+                        <small>${podcast.genre || 'Podcast'}</small>
+                    </div>
+                    <button class="play-podcast-btn"><i class="fa-solid fa-play"></i></button>
+                    ${isCustom ? '<button class="delete-podcast-btn" data-url="' + podcast.url + '"><i class="fa-solid fa-trash"></i></button>' : ''}
                 </div>
-                ${isCustom ? '<button class="delete-podcast-btn" data-url="' + podcast.url + '"><i class="fa-solid fa-trash"></i></button>' : ''}
+                <div class="podcast-player-container" id="player-${index}">
+                    <div class="loading-podcast" style="display:none; font-size: 0.8rem; color: var(--text-soft);">Lade Audio...</div>
+                    <audio controls style="display:none;"></audio>
+                </div>
             </div>
         `;
     }).join('');
 
     // Add click listeners
     container.querySelectorAll('.podcast-item').forEach(item => {
-        item.onclick = (e) => {
-            if (e.target.closest('.delete-podcast-btn')) return;
-            playPodcast(item.dataset.url, item.dataset.name);
+        const playBtn = item.querySelector('.play-podcast-btn');
+        const playerContainer = item.querySelector('.podcast-player-container');
+        const audio = playerContainer.querySelector('audio');
+        const loading = playerContainer.querySelector('.loading-podcast');
+
+        playBtn.onclick = async (e) => {
+            e.stopPropagation();
+
+            // Toggle container
+            const isActive = playerContainer.classList.toggle('active');
+
+            if (isActive && !audio.src) {
+                loading.style.display = 'block';
+                playBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+                try {
+                    const resolvedUrl = await PodcastService.resolveUrl(item.dataset.url);
+                    audio.src = resolvedUrl;
+                    audio.style.display = 'block';
+                    loading.style.display = 'none';
+                    playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+                    audio.play();
+                } catch (err) {
+                    console.error("Podcast resolution failed:", err);
+                    loading.textContent = "Fehler beim Laden";
+                    playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+                }
+            } else if (isActive) {
+                audio.play();
+                playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+            } else {
+                audio.pause();
+                playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+            }
         };
+
+        // Audio events
+        audio.onplay = () => playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+        audio.onpause = () => playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
     });
 
     // Add delete listeners for custom podcasts
@@ -373,7 +443,24 @@ function renderFrequencyList() {
 }
 
 function renderGenreFilters() {
-    const genres = ['Alle', ...new Set(stations.flatMap(s => s.genre.split(',').map(g => g.trim())).filter(g => g))];
+    // Count genre frequencies
+    const counts = {};
+    stations.forEach(s => {
+        if (!s.genre) return;
+        s.genre.split(',').forEach(g => {
+            const genre = g.trim();
+            if (!genre) return;
+            counts[genre] = (counts[genre] || 0) + 1;
+        });
+    });
+
+    // Sort by count and take Top 20
+    state.topGenres = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 20)
+        .map(entry => entry[0]);
+
+    const genres = ['Alle', ...state.topGenres.sort()];
     const container = document.getElementById('genreFilters');
     container.innerHTML = genres.map(g =>
         `<button class="genre-chip" data-genre="${g}">${g}</button>`
@@ -391,10 +478,6 @@ function updateActiveStationInLists(url) {
 function getFilteredStations() {
     const searchTerm = document.getElementById('searchStations').value.toLowerCase();
     return stations.filter(station => {
-        // Filter out stations with more than 5 words in name
-        const wordCount = station.name.trim().split(/\s+/).length;
-        if (wordCount > 5) return false;
-
         const matchesGenre = state.currentGenre === 'Alle' || station.genre.toLowerCase().includes(state.currentGenre.toLowerCase());
         const matchesSearch = station.name.toLowerCase().includes(searchTerm);
         return matchesGenre && matchesSearch;
@@ -519,12 +602,21 @@ function renderFavoritesList() {
         const stationImage = station.image || 'icon-192.png';
         const trueIndex = stations.findIndex(s => s.url === station.url);
         const hasFrequencies = station.frequencies && station.frequencies.length > 0;
+
+        // Shorten name if more than 5 words
+        const words = station.name.trim().split(/\s+/);
+        const displayName = words.length > 5 ? words.slice(0, 5).join(' ') + '...' : station.name;
+
+        // Filter genres to only show those in topGenres
+        const stationGenres = station.genre ? station.genre.split(',').map(g => g.trim()) : [];
+        const filteredGenres = stationGenres.filter(g => state.topGenres.includes(g)).join(', ');
+
         return `
-            <div class="list-item station-item" data-index="${trueIndex}" data-url="${station.url}" data-frequencies='${JSON.stringify(station.frequencies || [])}'>
+            <div class="list-item station-item" data-index="${trueIndex}" data-url="${station.url}" data-frequencies='${JSON.stringify(station.frequencies || [])}' title="${station.name}">
                 <div class="station-icon" style="background-image: url('${stationImage}')"></div>
                 <div class="station-info">
-                    <div>${station.name}</div>
-                    <small>${station.genre || ''} ${hasFrequencies ? '🎵' : ''}</small>
+                    <div>${displayName}</div>
+                    <small>${filteredGenres} ${hasFrequencies ? '🎵' : ''}</small>
                 </div>
             </div>
         `;
