@@ -114,6 +114,23 @@ class RadioPlayer {
                     { src: this.currentStation.image || 'icon-512.png', sizes: '512x512', type: 'image/png' }
                 ]
             });
+
+            // Set action handlers for background/lockscreen control
+            try {
+                navigator.mediaSession.setActionHandler('play', () => this.play());
+                navigator.mediaSession.setActionHandler('pause', () => this.pause());
+                navigator.mediaSession.setActionHandler('stop', () => this.stop());
+
+                // These will be overridden by app.js if specific logic is needed for skip
+                navigator.mediaSession.setActionHandler('previoustrack', () => {
+                    this.dispatchEvent('mediaPrev');
+                });
+                navigator.mediaSession.setActionHandler('nexttrack', () => {
+                    this.dispatchEvent('mediaNext');
+                });
+            } catch (error) {
+                console.warn("MediaSession Action Handlers not supported:", error);
+            }
         }
     }
 

@@ -33,7 +33,7 @@ function init() {
 
     setupEventListeners();
     setupPlayerEvents();
-    
+
     // Set initial theme
     const darkMode = localStorage.getItem('darkMode') === 'true';
     document.body.classList.toggle('dark', darkMode);
@@ -75,7 +75,7 @@ function navigateTo(page) {
 function loadStation(index, autoPlay = true) {
     // The index is from the main 'stations' array
     if (index < 0 || index >= stations.length) return;
-    
+
     const station = stations[index];
     state.currentStationIndex = index;
 
@@ -118,7 +118,7 @@ function setupPlayerEvents() {
 
         // NEW: Fetch cover art when metadata updates
         updateCoverArt(metadata.artist, metadata.title);
-        
+
         // NEW: Update music service links
         updateMusicServiceLinks(metadata.artist, metadata.title);
     });
@@ -135,6 +135,10 @@ function setupPlayerEvents() {
             console.warn("Metadata fetch error:", e);
         }
     });
+
+    // Handle Media Session Skip Buttons
+    radioPlayer.on('mediaPrev', () => playPreviousStation());
+    radioPlayer.on('mediaNext', () => playNextStation());
 }
 
 // --- Event Listeners ---
@@ -172,7 +176,7 @@ function setupEventListeners() {
     // Theme Toggle
     document.querySelector('.theme-toggle').onclick = toggleTheme;
     document.getElementById('darkModeToggle').onchange = toggleTheme;
-    
+
     // Genre Filters
     document.getElementById('genreFilters').addEventListener('click', e => {
         if (e.target.classList.contains('genre-chip')) {
@@ -186,7 +190,7 @@ function setupEventListeners() {
 function renderStationList() {
     const container = document.getElementById('stationList');
     const filteredStations = getFilteredStations();
-    
+
     // Update genre filter UI
     document.querySelectorAll('.genre-chip').forEach(chip => {
         chip.classList.toggle('active', chip.dataset.genre === state.currentGenre);
@@ -219,7 +223,7 @@ function renderStationList() {
             navigateTo('player'); // Switch back to player on selection
         };
     });
-    
+
     updateActiveStationInLists(radioPlayer.currentStation?.url);
 }
 
@@ -227,7 +231,7 @@ function renderStationList() {
 function renderPodcastList() {
     const container = document.getElementById('podcastList');
     const podcasts = getAllPodcasts();
-    
+
     if (podcasts.length === 0) {
         container.innerHTML = '<div class="empty-state">Keine Podcasts vorhanden.</div>';
         return;
@@ -279,22 +283,22 @@ function playPodcast(url, name) {
 function addPodcast() {
     const nameInput = document.getElementById('newPodcastName');
     const urlInput = document.getElementById('newPodcastUrl');
-    
+
     const name = nameInput.value.trim();
     const url = urlInput.value.trim();
-    
+
     if (!name || !url) {
         alert('Bitte Podcast-Name und URL eingeben');
         return;
     }
-    
+
     addCustomPodcast({
         name: name,
         url: url,
         genre: 'Benutzerdefiniert',
         image: ''
     });
-    
+
     nameInput.value = '';
     urlInput.value = '';
     renderPodcastList();
@@ -370,7 +374,7 @@ function renderFrequencyList() {
 function renderGenreFilters() {
     const genres = ['Alle', ...new Set(stations.flatMap(s => s.genre.split(',').map(g => g.trim())).filter(g => g))];
     const container = document.getElementById('genreFilters');
-    container.innerHTML = genres.map(g => 
+    container.innerHTML = genres.map(g =>
         `<button class="genre-chip" data-genre="${g}">${g}</button>`
     ).join('');
 }
@@ -389,7 +393,7 @@ function getFilteredStations() {
         // Filter out stations with more than 5 words in name
         const wordCount = station.name.trim().split(/\s+/).length;
         if (wordCount > 5) return false;
-        
+
         const matchesGenre = state.currentGenre === 'Alle' || station.genre.toLowerCase().includes(state.currentGenre.toLowerCase());
         const matchesSearch = station.name.toLowerCase().includes(searchTerm);
         return matchesGenre && matchesSearch;
@@ -402,7 +406,7 @@ function playNextStation() {
 
     const currentFilteredIndex = filtered.findIndex(s => s.url === radioPlayer.currentStation?.url);
     const nextFilteredIndex = (currentFilteredIndex + 1) % filtered.length;
-    
+
     // Find the true index in the main stations array
     const nextStation = filtered[nextFilteredIndex];
     const trueIndex = stations.findIndex(s => s.url === nextStation.url);
@@ -413,21 +417,21 @@ function playNextStation() {
 function stopPlayback() {
     radioPlayer.stop();
     freqGen.stopAll(); // Stop all frequencies
-    
+
     // Reset play icon
     playIcon.classList.remove('fa-pause');
     playIcon.classList.add('fa-play');
-    
+
     // Reset track info
     trackTitleEl.textContent = 'Titel: –';
     trackArtistEl.textContent = 'Interpret: –';
-    
+
     // Hide music service links
     document.getElementById('musicServiceLinks').style.display = 'none';
-    
+
     // Reset cover art to station image
     coverArtEl.style.backgroundImage = radioPlayer.currentStation?.image ? `url(${radioPlayer.currentStation.image})` : 'none';
-    
+
     // Reset frequency toggles in UI
     document.querySelectorAll('.freq-onoff').forEach(toggle => {
         toggle.checked = false;
@@ -529,7 +533,7 @@ function renderFavoritesList() {
         item.onclick = () => {
             const index = parseInt(item.dataset.index);
             loadStation(index, true);
-            
+
             // Restore frequency settings
             const freqData = JSON.parse(item.dataset.frequencies || '[]');
             if (freqData.length > 0) {
@@ -539,7 +543,7 @@ function renderFavoritesList() {
                         freqGen.toggleFrequency(freq.id, true);
                         freqGen.setFrequencyVolume(freq.id, freq.volume);
                     });
-                    
+
                     // Then update the UI
                     freqData.forEach(freq => {
                         const toggle = document.querySelector(`.freq-onoff[data-id="${freq.id}"]`);
@@ -551,7 +555,7 @@ function renderFavoritesList() {
                     });
                 }, 500);
             }
-            
+
             navigateTo('player');
         };
     });
@@ -592,15 +596,15 @@ function updateMusicServiceLinks(artist, title) {
     }
 
     container.style.display = 'flex';
-    
+
     const searchQuery = encodeURIComponent(`${artist} ${title}`);
-    
+
     // Update Spotify link
     document.getElementById('spotifyLink').href = `https://open.spotify.com/search/${searchQuery}`;
-    
+
     // Update YouTube link
     document.getElementById('youtubeLink').href = `https://music.youtube.com/search?q=${searchQuery}`;
-    
+
     // Update Soundcloud link
     document.getElementById('soundcloudLink').href = `https://soundcloud.com/search?q=${searchQuery}`;
 }

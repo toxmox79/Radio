@@ -27,6 +27,24 @@ self.addEventListener('install', (event) => {
 
 // Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+
+  // BYPASS CACHE for audio streams and specific stream patterns
+  // Android/Chrome often fails if the Service Worker tries to handle audio streams via Cache API
+  // especially if they don't support Range requests correctly.
+  if (
+    event.request.headers.get('range') ||
+    url.pathname.endsWith('.mp3') ||
+    url.pathname.endsWith('.aac') ||
+    url.pathname.endsWith('.ogg') ||
+    url.href.includes('stream') ||
+    url.href.includes('listen') ||
+    url.href.includes('icecast') ||
+    url.href.includes(';') // Common in SHOUTcast URLs
+  ) {
+    return; // Let the browser handle it normally
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -34,7 +52,7 @@ self.addEventListener('fetch', (event) => {
         if (response) {
           return response;
         }
-        
+
         // Clone the request
         const fetchRequest = event.request.clone();
 
